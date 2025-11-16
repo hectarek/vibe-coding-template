@@ -1,0 +1,194 @@
+---
+description: Enforce use case pattern - single responsibility, framework-agnostic
+globs: src/application/**/*.ts
+alwaysApply: true
+---
+
+# Use Case Pattern
+
+Use cases orchestrate domain logic and MUST be framework-agnostic.
+
+## Core Rules
+
+1. **One use case = One business operation**
+2. **Use cases depend on interfaces, not implementations**
+3. **Use cases receive plain data, return plain data**
+4. **No framework dependencies**
+
+## Use Case Structure
+
+```typescript
+export class [Action][Entity]UseCase {
+  constructor(
+    private readonly [entity]Repository: [Entity]Repository,
+    // ... other dependencies (all interfaces)
+  ) {}
+
+  async execute(input: [Action][Entity]Input): Promise<[Entity] | Result> {
+    // 1. Validate input
+    // 2. Apply business rules
+    // 3. Call repository
+    // 4. Return result
+  }
+}
+```
+
+## ✅ Good: Proper Use Case
+
+```typescript
+import type { User, CreateUserInput } from "../../domain/entities/user.entity";
+import type { UserRepository } from "../../domain/repositories/user.repository.port";
+
+export class CreateUserUseCase {
+  constructor(private readonly userRepository: UserRepository) {}
+  // ✅ Depends on interface
+
+  async execute(input: CreateUserInput): Promise<User> {
+    // ✅ Business rule: Validate email
+    if (!this.isValidEmail(input.email)) {
+      throw new Error("Invalid email format");
+    }
+
+    // ✅ Business rule: Check uniqueness
+    const existing = await this.userRepository.findByEmail(input.email);
+    if (existing) {
+      throw new Error("Email already exists");
+    }
+
+    // ✅ Business rule: Validate name
+    if (!input.name.trim()) {
+      throw new Error("Name cannot be empty");
+    }
+
+    // ✅ Delegate to repository
+    return this.userRepository.create({
+      email: input.email.toLowerCase().trim(),
+      name: input.name.trim(),
+    });
+  }
+
+  // ✅ Private helper method (domain logic)
+  private isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+}
+```
+
+## ❌ Bad: Anti-Patterns
+
+### ❌ Bad: Framework Dependencies
+
+```typescript
+// ❌ Bad: Next.js dependency
+import { NextRequest } from "next/server";
+
+export class CreateUserUseCase {
+  async execute(req: NextRequest): Promise<User> {
+    // ❌ Receives HTTP request object
+  }
+}
+```
+
+### ❌ Bad: Concrete Implementation Dependency
+
+```typescript
+// ❌ Bad: Depends on concrete implementation
+import { PostgresUserRepository } from "../../adapters/repositories/postgres-user.repository";
+
+export class CreateUserUseCase {
+  constructor(private readonly repo: PostgresUserRepository) {}
+  // ❌ Tightly coupled to PostgreSQL
+}
+```
+
+### ❌ Bad: Business Logic in Controller
+
+```typescript
+// ❌ Bad: Business logic in controller
+export class UserController {
+  async createUser(input: CreateUserRequest) {
+    // ❌ Business rules in controller
+    if (!input.email.includes("@")) {
+      throw new Error("Invalid email");
+    }
+    // Should be in use case!
+  }
+}
+```
+
+## Use Case Naming Convention
+
+- `Create[Entity]UseCase` - Create operation
+- `Get[Entity]UseCase` - Get single entity
+- `List[Entity]UseCase` - List entities
+- `Update[Entity]UseCase` - Update operation
+- `Delete[Entity]UseCase` - Delete operation
+- `[Action][Entity]UseCase` - Custom business operation
+
+## Use Case Responsibilities
+
+✅ **Use cases SHOULD:**
+- Validate input
+- Apply business rules
+- Orchestrate domain logic
+- Call repositories/services
+- Handle business errors
+
+❌ **Use cases SHOULD NOT:**
+- Handle HTTP requests/responses
+- Access database directly
+- Call external APIs directly
+- Contain framework-specific code
+- Contain presentation logic
+
+## Input/Output Types
+
+```typescript
+// ✅ Good: Plain data types
+export interface CreateUserInput {
+  email: string;
+  name: string;
+}
+
+export class CreateUserUseCase {
+  async execute(input: CreateUserInput): Promise<User> {
+    // Receives plain object, returns domain entity
+  }
+}
+
+// ❌ Bad: Framework types
+export class CreateUserUseCase {
+  async execute(req: NextRequest): Promise<Response> {
+    // ❌ Framework-specific types
+  }
+}
+```
+
+## Error Handling
+
+```typescript
+// ✅ Good: Throw domain errors
+async execute(input: CreateUserInput): Promise<User> {
+  if (!this.isValidEmail(input.email)) {
+    throw new Error("Invalid email format");
+    // ✅ Clear error message
+  }
+}
+
+// ❌ Bad: Return error objects (let controller handle it)
+async execute(input: CreateUserInput): Promise<User | ErrorResponse> {
+  if (!this.isValidEmail(input.email)) {
+    return { error: "INVALID_EMAIL" };
+    // ❌ Error handling is controller's responsibility
+  }
+}
+```
+
+## Violations to Flag
+
+1. Use case receiving HTTP request objects
+2. Use case depending on concrete repository implementations
+3. Use case importing from `adapters/` or `infrastructure/`
+4. Business logic in controllers instead of use cases
+5. Use case returning HTTP response objects
+6. Multiple responsibilities in one use case

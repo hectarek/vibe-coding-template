@@ -1,0 +1,144 @@
+---
+description: Enforce domain layer purity - no external dependencies
+globs: src/domain/**/*.ts
+alwaysApply: true
+---
+
+# Domain Layer Purity
+
+The domain layer MUST remain pure - no external dependencies, frameworks, or infrastructure code.
+
+## Core Rule
+
+**Domain layer contains ONLY pure business logic with zero external dependencies.**
+
+## Allowed in Domain Layer
+
+✅ **Pure TypeScript/JavaScript:**
+- Interfaces and types
+- Value objects
+- Domain entities
+- Business rules (pure functions)
+- Repository/service interfaces (ports)
+
+```typescript
+// ✅ Good: Pure domain entity
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ✅ Good: Repository interface (port)
+export interface UserRepository {
+  findById(id: string): Promise<User | null>;
+  create(input: CreateUserInput): Promise<User>;
+}
+
+// ✅ Good: Value object
+export interface CreateUserInput {
+  email: string;
+  name: string;
+}
+```
+
+## Forbidden in Domain Layer
+
+❌ **Framework imports:**
+```typescript
+// ❌ Bad: Next.js imports
+import { NextRequest } from "next/server";
+import { cookies } from "next/headers";
+
+// ❌ Bad: Express imports
+import { Request, Response } from "express";
+```
+
+❌ **Database libraries:**
+```typescript
+// ❌ Bad: Drizzle ORM
+import { eq } from "drizzle-orm";
+import { db } from "../infrastructure/db/connection";
+
+// ❌ Bad: Prisma
+import { PrismaClient } from "@prisma/client";
+```
+
+❌ **HTTP libraries:**
+```typescript
+// ❌ Bad: Fetch, Axios, etc.
+import fetch from "node-fetch";
+```
+
+❌ **External service clients:**
+```typescript
+// ❌ Bad: External API clients
+import { NotionClient } from "@notionhq/client";
+```
+
+❌ **Concrete implementations:**
+```typescript
+// ❌ Bad: Importing from adapters
+import { PostgresUserRepository } from "../../adapters/repositories/postgres-user.repository";
+
+// ❌ Bad: Importing from infrastructure
+import { db } from "../../infrastructure/db/connection";
+```
+
+## Domain Layer Structure
+
+```
+src/domain/
+├── entities/           # Domain entities (interfaces)
+├── repositories/       # Repository interfaces (ports)
+├── services/          # Service interfaces (ports)
+└── value-objects/    # Value objects (optional)
+```
+
+## Example: Pure Domain Layer
+
+```typescript
+// ✅ Good: Pure domain entity
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+}
+
+// ✅ Good: Repository port (interface only)
+export interface UserRepository {
+  findById(id: string): Promise<User | null>;
+  findByEmail(email: string): Promise<User | null>;
+  create(input: CreateUserInput): Promise<User>;
+}
+
+// ✅ Good: Service port (interface only)
+export interface AuthService {
+  getCurrentUser(): Promise<User | null>;
+  requireAuth(): Promise<User>;
+}
+
+// ✅ Good: Value object
+export interface CreateUserInput {
+  email: string;
+  name: string;
+}
+```
+
+## Violations to Flag
+
+1. Any import from `application/`, `adapters/`, or `infrastructure/`
+2. Framework imports (Next.js, Express, etc.)
+3. Database library imports (Drizzle, Prisma, etc.)
+4. HTTP library imports
+5. External service client imports
+6. Concrete class imports (only interfaces allowed)
+
+## Why This Matters
+
+- ✅ Business logic independent of frameworks
+- ✅ Easy to test (pure functions)
+- ✅ Can swap infrastructure without changing domain
+- ✅ Domain logic reusable across different platforms

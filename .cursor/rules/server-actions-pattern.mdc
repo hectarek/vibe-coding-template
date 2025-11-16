@@ -1,0 +1,144 @@
+---
+description: Enforce Server Actions pattern instead of API routes for Next.js
+globs: app/**/*.ts app/**/*.tsx
+alwaysApply: true
+---
+
+# Server Actions Pattern
+
+Use **Server Actions** instead of API routes for Next.js backend operations.
+
+## Rule
+
+**Prefer Server Actions over API routes for all backend operations.**
+
+## Server Actions Pattern
+
+### ✅ Good: Server Actions
+
+```typescript
+// app/actions/users.ts
+"use server";
+
+import { getContainer } from "@/src/di/container";
+import { revalidatePath } from "next/cache";
+
+export async function createUser(input: { email: string; name: string }) {
+  const container = getContainer();
+  const controller = container.getUserController();
+  
+  const result = await controller.createUser(input);
+  
+  if ("error" in result) {
+    throw new Error(result.message);
+  }
+  
+  revalidatePath("/users");
+  return result;
+}
+```
+
+### ❌ Bad: API Routes
+
+```typescript
+// ❌ Don't create API routes unless absolutely necessary
+// app/api/users/route.ts
+export async function POST(request: NextRequest) {
+  // Use Server Actions instead
+}
+```
+
+## When to Use Server Actions
+
+✅ **Use Server Actions for:**
+- CRUD operations
+- Form submissions
+- Data mutations
+- Protected actions
+- Any operation that needs server-side logic
+
+❌ **Only use API routes for:**
+- Webhooks (external services calling your API)
+- Public APIs that need REST endpoints
+- Third-party integrations requiring specific endpoints
+
+## Server Action Structure
+
+1. **File location**: `app/actions/[feature].ts`
+2. **Directive**: Always include `"use server"` at the top
+3. **Error handling**: Throw errors (Server Actions handle them automatically)
+4. **Revalidation**: Use `revalidatePath()` or `revalidateTag()` after mutations
+
+## Example: Complete Server Action
+
+```typescript
+"use server";
+
+import { getContainer } from "@/src/di/container";
+import { revalidatePath } from "next/cache";
+
+export async function createUser(input: { email: string; name: string }) {
+  const container = getContainer();
+  const controller = container.getUserController();
+  
+  const result = await controller.createUser(input);
+  
+  if ("error" in result) {
+    throw new Error(result.message);
+  }
+  
+  revalidatePath("/users");
+  return result;
+}
+
+export async function getUser(id: string) {
+  const container = getContainer();
+  const controller = container.getUserController();
+  
+  const result = await controller.getUserById(id);
+  
+  if ("error" in result) {
+    throw new Error(result.message);
+  }
+  
+  return result;
+}
+```
+
+## Using in Components
+
+```typescript
+"use client";
+
+import { createUser } from "@/app/actions/users";
+import { useTransition } from "react";
+
+export function UserForm() {
+  const [isPending, startTransition] = useTransition();
+  
+  async function handleSubmit(formData: FormData) {
+    startTransition(async () => {
+      await createUser({
+        email: formData.get("email") as string,
+        name: formData.get("name") as string,
+      });
+    });
+  }
+  
+  return <form action={handleSubmit}>...</form>;
+}
+```
+
+## Benefits
+
+- ✅ Type-safe (full TypeScript support)
+- ✅ Simpler (no fetch, no serialization)
+- ✅ Better DX (automatic error handling)
+- ✅ Cleaner code (no route handlers)
+
+## Violations to Flag
+
+1. Creating API routes in `app/api/` for standard CRUD operations
+2. Missing `"use server"` directive in action files
+3. Using `fetch()` to call internal endpoints instead of Server Actions
+4. Not revalidating cache after mutations

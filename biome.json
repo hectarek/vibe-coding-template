@@ -20,6 +20,20 @@
       "recommended": true,
       "suspicious": {
         "noUnknownAtRules": "off"
+      },
+      "complexity": {
+        "useLiteralKeys": "off"
+      },
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "../*": "Use @/src/* instead of relative imports (e.g., '@/src/domain/...' instead of '../../domain/...')",
+              "./*": "Use @/ or @/src/* instead of relative imports (e.g., '@/src/...' instead of './...')"
+            }
+          }
+        }
       }
     },
     "domains": {
@@ -33,5 +47,146 @@
         "organizeImports": "on"
       }
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/domain/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "../*": "Domain layer must use @/src/* imports, not relative paths",
+                  "./*": "Domain layer must use @/src/* imports, not relative paths",
+                  "@/src/application/**": "Domain layer cannot import from application layer",
+                  "@/src/adapters/**": "Domain layer cannot import from adapters layer",
+                  "@/src/infrastructure/**": "Domain layer cannot import from infrastructure layer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/application/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "../*": "Application layer must use @/src/* imports, not relative paths",
+                  "./*": "Application layer must use @/src/* imports, not relative paths",
+                  "@/src/adapters/**": "Application layer cannot import from adapters layer",
+                  "@/src/infrastructure/**": "Application layer cannot import from infrastructure layer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/adapters/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "../*": "Adapters layer must use @/src/* imports, not relative paths",
+                  "./*": "Adapters layer must use @/src/* imports, not relative paths"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/infrastructure/**", "src/di/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "../*": "Use @/src/* imports instead of relative paths",
+                  "./*": "Use @/src/* imports instead of relative paths"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["app/_components/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@/src/application/**": "Client components cannot import from application layer. Use Server Actions instead.",
+                  "@/src/domain/**": "Client components cannot import from domain layer. Use Server Actions instead.",
+                  "@/src/adapters/api/**": "Client components cannot import controllers directly. Use Server Actions instead.",
+                  "../*": "Use @/ imports instead of relative paths",
+                  "./*": "Use @/ imports instead of relative paths"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["app/actions/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@/src/application/**": "Server Actions cannot import from application layer directly. Use controllers from DI container instead.",
+                  "@/src/domain/**": "Server Actions cannot import from domain layer directly. Use controllers from DI container instead.",
+                  "../*": "Use @/src/* imports instead of relative paths",
+                  "./*": "Use @/src/* imports instead of relative paths"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["app/**/page.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "@/src/application/**": "Pages cannot import from application layer. Use Server Actions instead.",
+                  "@/src/domain/**": "Pages cannot import from domain layer. Use Server Actions instead.",
+                  "@/src/adapters/api/**": "Pages cannot import controllers directly. Use Server Actions instead.",
+                  "../*": "Use @/ imports instead of relative paths",
+                  "./*": "Use @/ imports instead of relative paths"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

@@ -1,0 +1,145 @@
+---
+description: Frontend data flow pattern for Next.js App Router with Server Actions
+globs: app/**/* src/adapters/api/**/*
+alwaysApply: true
+---
+
+# Frontend Data Flow Pattern
+
+Enforce strict data flow patterns in Next.js App Router applications.
+
+## Data Flow Architecture
+
+```
+Components -> Page (Server Component) -> Server Action -> Controller -> Use Case -> Repository
+```
+
+**The UI should never directly reach into application layers**
+
+## Rules
+
+### Pages (`app/*/page.tsx`)
+
+✅ **Pages SHOULD:**
+- Call Server Actions to fetch initial data
+- Pass data down to client components via props
+- Compose UI by rendering client components
+
+❌ **Pages MUST NOT:**
+- Handle user interactions (clicks, form submissions)
+- Contain complex state management
+- Call controllers or use cases directly
+- Import from `src/application/` or `src/domain/`
+
+### Server Actions (`app/actions/*.ts`)
+
+✅ **Server Actions SHOULD:**
+- Always use `'use server'` directive at the top
+- Get controllers from `getContainer()` - never instantiate directly
+- Handle ControllerResponse success/error states
+- Throw errors for UI (Server Actions handle them automatically)
+- Revalidate cache after mutations using `revalidatePath()` or `revalidateTag()`
+
+❌ **Server Actions MUST NOT:**
+- Contain business logic (delegate to controllers)
+- Import from `src/application/` or `src/domain/` directly
+- Instantiate controllers directly (use DI container)
+
+**Example:**
+```typescript
+'use server'
+
+import { getContainer } from '@/src/di/container'
+import { revalidatePath } from 'next/cache'
+
+export async function createUserAction(input: { email: string; name: string }) {
+  const container = getContainer()
+  const controller = container.getUserController()
+  
+  const response = await controller.createUser(input)
+  
+  if ('error' in response) {
+    throw new Error(response.message)
+  }
+  
+  revalidatePath('/users')
+  return response
+}
+```
+
+### Client Components (`app/_components/**/*.tsx`)
+
+✅ **Client Components SHOULD:**
+- Handle user interactions (onClick, onChange, etc.)
+- Manage UI state with `useState` and `useTransition`
+- Receive data via props from parent components
+- Call Server Actions for form submissions and mutations
+
+❌ **Client Components MUST NOT:**
+- Call Server Actions to fetch their own initial data (page's job)
+- Access controllers or use cases directly
+- Import from `src/application/`, `src/domain/`, or `src/adapters/api/`
+- Contain business logic
+
+**Example:**
+```typescript
+'use client'
+
+import { useTransition } from 'react'
+import { createUserAction } from '@/app/actions/users'
+
+export function UserForm() {
+  const [isPending, startTransition] = useTransition()
+  
+  const handleSubmit = (formData: FormData) => {
+    startTransition(async () => {
+      await createUserAction({
+        email: formData.get('email') as string,
+        name: formData.get('name') as string,
+      })
+    })
+  }
+  
+  return <form action={handleSubmit}>{/* Form fields */}</form>
+}
+```
+
+## Data Flow Pattern
+
+### ✅ Good: Page fetches, component receives
+
+```typescript
+// app/users/page.tsx
+import { listUsersAction } from '@/app/actions/users'
+import { UsersList } from '@/app/_components/users/users-list'
+
+export default async function UsersPage() {
+  const users = await listUsersAction()
+  return <UsersList users={users} />
+}
+```
+
+### ❌ Bad: Component fetches its own data
+
+```typescript
+// ❌ Don't do this
+'use client'
+export function UsersList() {
+  const [users, setUsers] = useState([])
+  
+  useEffect(() => {
+    listUsersAction().then(setUsers) // ❌ Component fetching initial data
+  }, [])
+  
+  return <div>{/* Render users */}</div>
+}
+```
+
+## Violations to Flag
+
+1. Client components importing from `src/application/` or `src/domain/`
+2. Client components calling controllers directly
+3. Server Actions containing business logic
+4. Pages handling user interactions
+5. Components fetching their own initial data (should come from page)
+6. Server Actions instantiating controllers directly (should use DI container)

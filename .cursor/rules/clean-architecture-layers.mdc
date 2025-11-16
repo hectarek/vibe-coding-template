@@ -1,0 +1,104 @@
+---
+description: Enforce clean architecture layer separation and dependency rules
+globs: src/**/*.ts
+alwaysApply: true
+---
+
+# Clean Architecture Layer Separation
+
+Enforce strict layer separation and dependency direction in the codebase.
+
+## Layer Structure
+
+```
+src/
+├── domain/          # Innermost - pure business logic
+├── application/     # Use cases - orchestrates domain logic
+├── adapters/        # Interface adapters - bridges to external world
+└── infrastructure/  # Outermost - framework & external services
+```
+
+## Dependency Rule
+
+**Dependencies MUST point inward. Inner layers NEVER depend on outer layers.**
+
+```
+Infrastructure → Adapters → Application → Domain
+     ↓              ↓           ↓          ↓
+  (outer)       (outer)      (inner)   (innermost)
+```
+
+## Rules
+
+### Domain Layer (`src/domain/`)
+- ✅ MUST contain only pure TypeScript/JavaScript
+- ✅ MUST define interfaces (ports) for external dependencies
+- ❌ MUST NOT import from `application/`, `adapters/`, or `infrastructure/`
+- ❌ MUST NOT import framework code (Next.js, Express, etc.)
+- ❌ MUST NOT import database libraries (Drizzle, Prisma, etc.)
+- ❌ MUST NOT import HTTP libraries
+
+**Example:**
+```typescript
+// ✅ Good: Pure domain entity
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+}
+
+// ❌ Bad: Domain importing adapter
+import { PostgresUserRepository } from "../../adapters/repositories/postgres-user.repository";
+```
+
+### Application Layer (`src/application/`)
+- ✅ MUST depend only on `domain/` layer
+- ✅ MUST depend on repository **interfaces**, not implementations
+- ❌ MUST NOT import from `adapters/` or `infrastructure/`
+- ❌ MUST NOT contain framework-specific code
+
+**Example:**
+```typescript
+// ✅ Good: Use case depends on interface
+import type { UserRepository } from "../../domain/repositories/user.repository.port";
+
+export class CreateUserUseCase {
+  constructor(private readonly userRepository: UserRepository) {}
+}
+
+// ❌ Bad: Use case depends on concrete implementation
+import { PostgresUserRepository } from "../../adapters/repositories/postgres-user.repository";
+```
+
+### Adapters Layer (`src/adapters/`)
+- ✅ MUST implement interfaces from `domain/` layer
+- ✅ MUST depend on `application/` and `domain/` layers
+- ✅ Controllers receive plain data, return plain data (framework-agnostic)
+- ❌ MUST NOT contain business logic (delegate to use cases)
+
+**Example:**
+```typescript
+// ✅ Good: Controller receives plain data
+async createUser(input: CreateUserRequest): Promise<UserResponse> {
+  const user = await this.createUserUseCase.execute(input);
+  return this.toUserResponse(user);
+}
+
+// ❌ Bad: Controller receives HTTP request object
+async createUser(req: NextRequest): Promise<Response> {
+  // This couples controller to Next.js
+}
+```
+
+### Infrastructure Layer (`src/infrastructure/`)
+- ✅ CAN depend on all other layers
+- ✅ Framework-specific code lives here
+- ✅ Dependency injection container lives here
+
+## Violations to Flag
+
+1. Domain layer importing from outer layers
+2. Application layer importing concrete repository implementations
+3. Controllers containing business logic
+4. Use cases depending on frameworks
+5. Circular dependencies between layers

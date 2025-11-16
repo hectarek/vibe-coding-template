@@ -1,0 +1,117 @@
+---
+description: Enforce dependency inversion principle - depend on abstractions, not concretions
+globs: src/**/*.ts
+alwaysApply: true
+---
+
+# Dependency Inversion Principle
+
+High-level modules (use cases) MUST depend on abstractions (interfaces), not concrete implementations.
+
+## Core Rule
+
+**Always depend on interfaces (ports), never on concrete implementations.**
+
+## Patterns
+
+### ✅ Good: Depend on Interface
+
+```typescript
+// Domain layer defines interface
+export interface UserRepository {
+  findById(id: string): Promise<User | null>;
+  create(input: CreateUserInput): Promise<User>;
+}
+
+// Use case depends on interface
+export class CreateUserUseCase {
+  constructor(private readonly userRepository: UserRepository) {}
+  // ✅ Depends on abstraction
+}
+
+// Repository implements interface
+export class PostgresUserRepository implements UserRepository {
+  // ✅ Implements abstraction
+}
+```
+
+### ❌ Bad: Depend on Concrete Implementation
+
+```typescript
+// ❌ Use case depends on concrete implementation
+export class CreateUserUseCase {
+  constructor(private readonly userRepository: PostgresUserRepository) {}
+  // ❌ Tightly coupled to PostgreSQL
+}
+
+// ❌ Use case imports from adapters layer
+import { PostgresUserRepository } from "../../adapters/repositories/postgres-user.repository";
+```
+
+## Repository Pattern
+
+### Creating a Repository
+
+1. **Define interface in domain layer** (`src/domain/repositories/`)
+```typescript
+export interface TaskRepository {
+  findById(id: string): Promise<Task | null>;
+  create(input: CreateTaskInput): Promise<Task>;
+}
+```
+
+2. **Implement in adapters layer** (`src/adapters/repositories/`)
+```typescript
+export class PostgresTaskRepository implements TaskRepository {
+  // Implementation
+}
+```
+
+3. **Use interface in use cases** (`src/application/use-cases/`)
+```typescript
+export class CreateTaskUseCase {
+  constructor(private readonly taskRepository: TaskRepository) {}
+  // ✅ Uses interface, not implementation
+}
+```
+
+## Service Pattern
+
+### Creating a Service
+
+1. **Define interface in domain layer** (`src/domain/services/`)
+```typescript
+export interface AuthService {
+  getCurrentUser(): Promise<User | null>;
+  requireAuth(): Promise<User>;
+}
+```
+
+2. **Implement in infrastructure layer** (`src/infrastructure/`)
+```typescript
+export class NextAuthService implements AuthService {
+  // Implementation
+}
+```
+
+3. **Use interface in use cases/controllers**
+```typescript
+export class SomeUseCase {
+  constructor(private readonly authService: AuthService) {}
+  // ✅ Uses interface
+}
+```
+
+## Violations to Flag
+
+1. Use case constructor accepting concrete repository class
+2. Importing concrete implementations in application layer
+3. Type annotations using concrete classes instead of interfaces
+4. Direct instantiation of concrete classes in use cases
+
+## Benefits
+
+- ✅ Easy to swap implementations (Postgres → MongoDB)
+- ✅ Easy to test (mock interfaces)
+- ✅ Business logic independent of infrastructure
+- ✅ Follows SOLID principles

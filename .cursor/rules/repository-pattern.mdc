@@ -1,0 +1,184 @@
+---
+description: Enforce repository pattern - interface in domain, implementation in adapters
+globs: src/**/*repository*.ts
+alwaysApply: true
+---
+
+# Repository Pattern
+
+Repositories abstract data access. Interface in domain, implementation in adapters.
+
+## Pattern Structure
+
+1. **Interface (Port)** → `src/domain/repositories/[entity].repository.port.ts`
+2. **Implementation (Adapter)** → `src/adapters/repositories/[type]-[entity].repository.ts`
+
+## Repository Interface (Domain Layer)
+
+```typescript
+// ✅ Good: Repository interface in domain layer
+// src/domain/repositories/user.repository.port.ts
+
+import type { User, CreateUserInput, UpdateUserInput } from "../entities/user.entity";
+
+export interface UserRepository {
+  findById(id: string): Promise<User | null>;
+  findByEmail(email: string): Promise<User | null>;
+  create(input: CreateUserInput): Promise<User>;
+  update(id: string, input: UpdateUserInput): Promise<User | null>;
+  delete(id: string): Promise<boolean>;
+  list(limit?: number, offset?: number): Promise<User[]>;
+}
+```
+
+## Repository Implementation (Adapters Layer)
+
+```typescript
+// ✅ Good: Repository implementation in adapters layer
+// src/adapters/repositories/postgres-user.repository.ts
+
+import { eq } from "drizzle-orm";
+import { db } from "../../infrastructure/db/connection";
+import { users } from "../../db/schema";
+import type { User, CreateUserInput, UpdateUserInput } from "../../domain/entities/user.entity";
+import type { UserRepository } from "../../domain/repositories/user.repository.port";
+
+export class PostgresUserRepository implements UserRepository {
+  async findById(id: string): Promise<User | null> {
+    // Database-specific implementation
+  }
+
+  async create(input: CreateUserInput): Promise<User> {
+    // Database-specific implementation
+  }
+
+  // ... implement all interface methods
+}
+```
+
+## Naming Conventions
+
+### Interface (Port)
+- `[Entity]Repository` - e.g., `UserRepository`, `TaskRepository`
+- File: `[entity].repository.port.ts`
+
+### Implementation (Adapter)
+- `[Type][Entity]Repository` - e.g., `PostgresUserRepository`, `InMemoryUserRepository`
+- File: `[type]-[entity].repository.ts`
+
+## ✅ Good: Proper Repository Pattern
+
+```typescript
+// Domain: Interface
+export interface TaskRepository {
+  findById(id: string): Promise<Task | null>;
+  create(input: CreateTaskInput): Promise<Task>;
+}
+
+// Adapters: Implementation
+export class PostgresTaskRepository implements TaskRepository {
+  async findById(id: string): Promise<Task | null> {
+    // PostgreSQL-specific code
+  }
+  
+  async create(input: CreateTaskInput): Promise<Task> {
+    // PostgreSQL-specific code
+  }
+}
+
+// Application: Use interface
+export class CreateTaskUseCase {
+  constructor(private readonly taskRepository: TaskRepository) {}
+  // ✅ Uses interface, not implementation
+}
+```
+
+## ❌ Bad: Anti-Patterns
+
+### ❌ Bad: Interface in Wrong Layer
+
+```typescript
+// ❌ Bad: Interface in adapters layer
+// src/adapters/repositories/user.repository.port.ts
+export interface UserRepository { ... }
+```
+
+### ❌ Bad: Implementation in Domain Layer
+
+```typescript
+// ❌ Bad: Implementation in domain layer
+// src/domain/repositories/postgres-user.repository.ts
+export class PostgresUserRepository { ... }
+```
+
+### ❌ Bad: Use Case Depends on Implementation
+
+```typescript
+// ❌ Bad: Use case imports concrete implementation
+import { PostgresUserRepository } from "../../adapters/repositories/postgres-user.repository";
+
+export class CreateUserUseCase {
+  constructor(private readonly repo: PostgresUserRepository) {}
+  // ❌ Should use interface
+}
+```
+
+## Repository Methods
+
+### Standard CRUD Methods
+
+```typescript
+export interface [Entity]Repository {
+  // Read
+  findById(id: string): Promise<[Entity] | null>;
+  findBy[Field](field: Type): Promise<[Entity] | null>;
+  list(limit?: number, offset?: number): Promise<[Entity][]>;
+  
+  // Write
+  create(input: Create[Entity]Input): Promise<[Entity]>;
+  update(id: string, input: Update[Entity]Input): Promise<[Entity] | null>;
+  delete(id: string): Promise<boolean>;
+}
+```
+
+### Return Types
+
+- **Single entity**: `Promise<Entity | null>` (null if not found)
+- **List**: `Promise<Entity[]>` (empty array if none found)
+- **Create/Update**: `Promise<Entity>` (always returns entity)
+- **Delete**: `Promise<boolean>` (true if deleted, false if not found)
+
+## Converting Database Rows to Domain Entities
+
+```typescript
+export class PostgresUserRepository implements UserRepository {
+  async findById(id: string): Promise<User | null> {
+    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    
+    if (result.length === 0 || !result[0]) {
+      return null;
+    }
+    
+    return this.toDomainEntity(result[0]);
+    // ✅ Convert DB row to domain entity
+  }
+
+  private toDomainEntity(row: typeof users.$inferSelect): User {
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      createdAt: row.createdAt ?? new Date(),
+      updatedAt: row.updatedAt ?? new Date(),
+    };
+  }
+}
+```
+
+## Violations to Flag
+
+1. Repository interface in adapters layer (should be in domain)
+2. Repository implementation in domain layer (should be in adapters)
+3. Use case depending on concrete repository class
+4. Repository methods returning database-specific types
+5. Domain entities containing database-specific fields

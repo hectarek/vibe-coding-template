@@ -1,0 +1,173 @@
+---
+description: Enforce dependency injection pattern - wire dependencies in container
+globs: src/di/**/*.ts
+alwaysApply: true
+---
+
+# Dependency Injection Pattern
+
+All dependencies MUST be wired up in the DI container. Use the container to get instances.
+
+## Core Rule
+
+**Never instantiate dependencies directly. Always get them from the container.**
+
+## Container Location
+
+- **Container**: `src/di/container.ts`
+- **Get container**: `getContainer()` function
+
+## ✅ Good: Using Container
+
+```typescript
+// ✅ Good: Get from container
+import { getContainer } from "@/src/di/container";
+
+export async function createUser(input: CreateUserInput) {
+  const container = getContainer();
+  const controller = container.getUserController();
+  
+  const result = await controller.createUser(input);
+  return result;
+}
+```
+
+## ❌ Bad: Direct Instantiation
+
+```typescript
+// ❌ Bad: Direct instantiation
+import { PostgresUserRepository } from "@/src/adapters/repositories/postgres-user.repository";
+import { CreateUserUseCase } from "@/src/application/use-cases/create-user.use-case";
+
+export async function createUser(input: CreateUserInput) {
+  const repo = new PostgresUserRepository(); // ❌ Don't do this
+  const useCase = new CreateUserUseCase(repo); // ❌ Don't do this
+}
+```
+
+## Container Structure
+
+```typescript
+export class Container {
+  // Repositories
+  private userRepository: UserRepository;
+  
+  // Services
+  private authService: AuthService;
+  
+  // Use cases
+  private createUserUseCase: CreateUserUseCase;
+  
+  // Controllers
+  private userController: UserController;
+
+  constructor() {
+    // Initialize repositories
+    this.userRepository = new PostgresUserRepository();
+    
+    // Initialize services
+    this.authService = new PlaceholderAuthService();
+    
+    // Initialize use cases (depend on repositories/services)
+    this.createUserUseCase = new CreateUserUseCase(this.userRepository);
+    
+    // Initialize controllers (depend on use cases)
+    this.userController = new UserController(
+      this.createUserUseCase,
+      // ... other use cases
+    );
+  }
+
+  getUserController(): UserController {
+    return this.userController;
+  }
+  
+  getAuthService(): AuthService {
+    return this.authService;
+  }
+}
+```
+
+## Adding New Dependencies
+
+### Step 1: Add to Container Class
+
+```typescript
+export class Container {
+  // Add new repository
+  private taskRepository: TaskRepository;
+  
+  // Add new use case
+  private createTaskUseCase: CreateTaskUseCase;
+  
+  // Add new controller
+  private taskController: TaskController;
+}
+```
+
+### Step 2: Initialize in Constructor
+
+```typescript
+constructor() {
+  // Initialize new repository
+  this.taskRepository = new PostgresTaskRepository();
+  
+  // Initialize new use case
+  this.createTaskUseCase = new CreateTaskUseCase(this.taskRepository);
+  
+  // Initialize new controller
+  this.taskController = new TaskController(this.createTaskUseCase);
+}
+```
+
+### Step 3: Add Getter Method
+
+```typescript
+getTaskController(): TaskController {
+  return this.taskController;
+}
+```
+
+## Swapping Implementations
+
+```typescript
+// ✅ Good: Swap implementation in container
+const container = getContainer();
+container.setUserRepository(new InMemoryUserRepository());
+// All use cases automatically use new repository
+
+// ❌ Bad: Swap implementation elsewhere
+const repo = new InMemoryUserRepository();
+const useCase = new CreateUserUseCase(repo);
+// This breaks the dependency graph
+```
+
+## Testing with Container
+
+```typescript
+// ✅ Good: Swap for testing
+import { resetContainer, getContainer } from "@/src/di/container";
+import { InMemoryUserRepository } from "@/src/adapters/repositories/in-memory-user.repository";
+
+beforeEach(() => {
+  resetContainer();
+  const container = getContainer();
+  container.setUserRepository(new InMemoryUserRepository());
+});
+```
+
+## Violations to Flag
+
+1. Direct instantiation of repositories/use cases/controllers
+2. Creating dependencies outside container
+3. Importing concrete implementations in Server Actions
+4. Bypassing container to get dependencies
+5. Not using container getters
+
+## Benefits
+
+- ✅ Centralized dependency management
+- ✅ Easy to swap implementations
+- ✅ Consistent dependency graph
+- ✅ Easy to test (swap implementations)
+- ✅ Single source of truth for dependencies
