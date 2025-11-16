@@ -1,4 +1,4 @@
-# Vibe Coding Template
+# Hector's Modern Vibe Coding Template
 
 A production-ready Next.js template with Clean Architecture, TypeScript, and best practices built-in.
 
